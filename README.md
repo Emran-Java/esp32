@@ -1,2 +1,2 @@
-# esp32 related prijects
-Backep all esp32 related prijects
+# esp32 related projects
+Backep all esp32 related projects
