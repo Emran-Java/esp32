@@ -1,2 +1,2 @@
-# iot
-Backep all IoT Demo project 
+# esp32 related prijects
+Backep all esp32 related prijects
