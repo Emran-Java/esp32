@@ -1,0 +1,210 @@
+{
+  "Test": {
+    "random_Int_Val": 78
+  },
+  "clnt1": [
+    {
+      "dvicNo": "1",
+      "isActive": "1",
+      "led1": "1",
+      "led2": "1"
+    },
+    {
+      "dvicNo": "2",
+      "isActive": "1",
+      "led1": "0",
+      "led2": "0"
+    },
+    {
+      "divicNo": "3",
+      "isActive": "1",
+      "led1": "1",
+      "led2": "0"
+    }
+  ],
+  "clnt2": {
+    "0": {
+      "deviceType": "2pin6w",
+      "dvicNo": "1",
+      "isActive": "1",
+      "loadCategory": "multi_plug",
+      "lod": [
+        {
+          "loadTitle": "Load 1",
+          "loadType": "switch",
+          "lod": "1"
+        },
+        {
+          "loadTitle": "Load 2",
+          "loadType": "switch",
+          "lod": "0"
+        }
+      ],
+      "lod1": "0",
+      "lod2": "1",
+      "note": "r&d test device"
+    },
+    "1": {
+      "deviceType": "3pin10w",
+      "dvicNo": "2",
+      "isActive": "1",
+      "loadCategory": "multi-plug",
+      "lod": [
+        {
+          "loadTitle": "Load 1",
+          "loadType": "switch",
+          "lod": "0"
+        },
+        {
+          "loadTitle": "Load 2",
+          "loadType": "switch",
+          "lod": "0"
+        }
+      ]
+    },
+    "2": {
+      "deviceType": "2line10w",
+      "dvicNo": "3",
+      "isActive": "1",
+      "loadCategory": "smart-home-load-2",
+      "lod": [
+        {
+          "loadTitle": "Load 1",
+          "loadType": "switch",
+          "lod": "0"
+        },
+        {
+          "loadTitle": "Load 2",
+          "loadType": "switch",
+          "lod": "0"
+        }
+      ],
+      "lod1": "0",
+      "lod2": "0",
+      "note": "tofar bashar test device"
+    },
+    "3": {
+      "deviceType": "2pin6w",
+      "dvicNo": "4",
+      "isActive": "1",
+      "loadCategory": "single-multi-plug",
+      "lod": [
+        {
+          "loadTitle": "Load 1",
+          "loadType": "switch",
+          "lod": "0"
+        },
+        {
+          "loadTitle": "",
+          "loadType": "",
+          "lod": "1"
+        }
+      ],
+      "lod1": "0",
+      "lod2": "0",
+      "note": "multi-plug"
+    },
+    "4": {
+      "deviceType": "2pin6w",
+      "dvicNo": "5",
+      "isActive": "1",
+      "loadCategory": "single-multi-plug",
+      "lod": [
+        {
+          "loadTitle": "Load 1",
+          "loadType": "switch",
+          "lod": "0"
+        },
+        {
+          "loadTitle": "Load 2",
+          "loadType": "",
+          "lod": "0"
+        }
+      ],
+      "lod1": "1",
+      "lod2": "0",
+      "note": "multi-plug"
+    },
+    "5": {
+      "deviceType": "2line10w",
+      "dvicNo": "6",
+      "isActive": "1",
+      "loadCategory": "single-multi-plug",
+      "lod": [
+        {
+          "loadTitle": "Load 1",
+          "loadType": "switch",
+          "lod": "0"
+        },
+        {
+          "loadTitle": "Load 2",
+          "loadType": "",
+          "lod": "0"
+        }
+      ],
+      "lod1": "0",
+      "lod2": "0",
+      "note": "multi-plug"
+    },
+    "6": {
+      "deviceType": "6pin6w",
+      "dvicNo": "7",
+      "isActive": "1",
+      "loadCategory": "smart-home-load-2",
+      "lod": [
+        {
+          "loadTitle": "Load 1",
+          "loadType": "switch",
+          "lod": "0"
+        },
+        {
+          "loadTitle": "Load 2",
+          "loadType": "switch",
+          "lod": "1"
+        },
+        {
+          "loadTitle": "Load 3",
+          "loadType": "switch",
+          "lod": "0"
+        }
+      ],
+      "lod1": "0",
+      "lod2": "0",
+      "note": "multi-plug"
+    },
+    "7": {
+      "deviceType": "2line6w",
+      "dvicNo": "8",
+      "isActive": "0",
+      "loadCategory": "smart-home-load-2",
+      "lod": [
+        {
+          "loadTitle": "Load 1",
+          "loadType": "switch",
+          "lod": "0"
+        },
+        {
+          "loadTitle": "Load 2",
+          "loadType": "switch",
+          "lod": "0"
+        }
+      ],
+      "lod1": "0",
+      "lod2": "0",
+      "note": "multi-plug"
+    },
+    "128lod2": "0",
+    "1lod1": "0",
+    "1lod2": "0"
+  },
+  "led2": "off",
+  "ledOne": "off",
+  "phone_charge": "81.0",
+  "smart_loft": {
+    "fan1": "off",
+    "light1": "on",
+    "light2": "off",
+    "light3": "off",
+    "light4": "on"
+  }
+}

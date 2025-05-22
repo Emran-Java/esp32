@@ -1,0 +1,58 @@
+#include <WiFi.h>
+#include <NTPClient.h>
+#include <WiFiUdp.h>
+#include <EEPROM.h>
+
+#define LED_PIN 4  // D4 = GPIO4
+
+const char* ssid     = "YOUR_SSID";
+const char* password = "YOUR_PASSWORD";
+
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, "pool.ntp.org", 6 * 3600, 60000);  // GMT+6, update every 60s
+
+#define EEPROM_SIZE 1
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(LED_PIN, OUTPUT);
+
+  EEPROM.begin(EEPROM_SIZE);
+  digitalWrite(LED_PIN, EEPROM.read(0));  // Restore previous LED state
+
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  timeClient.begin();
+}
+
+void loop() {
+  timeClient.update();
+  
+  int currentHour = timeClient.getHours();
+  int currentMinute = timeClient.getMinutes();
+
+  // Turn ON at 10:00 AM
+  if (currentHour == 10 && currentMinute == 0 && digitalRead(LED_PIN) == LOW) {
+    digitalWrite(LED_PIN, HIGH);
+    EEPROM.write(0, HIGH);
+    EEPROM.commit();
+    Serial.println("LED ON at 10 AM");
+    delay(60000);  // Wait 1 minute to avoid multiple triggers
+  }
+
+  // Turn OFF at 12:00 PM
+  if (currentHour == 12 && currentMinute == 0 && digitalRead(LED_PIN) == HIGH) {
+    digitalWrite(LED_PIN, LOW);
+    EEPROM.write(0, LOW);
+    EEPROM.commit();
+    Serial.println("LED OFF at 12 PM");
+    delay(60000);  // Wait 1 minute to avoid multiple triggers
+  }
+
+  delay(1000);  // check every second
+}
+
