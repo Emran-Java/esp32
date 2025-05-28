@@ -1,7 +1,7 @@
 
 //ESP 32
-const int trigPin = 5;
-const int echoPin = 18;
+const int TRIG_PIN = 5;
+const int ECHO_PIN = 18;
 
 //MCU ESP 8266 
 //const int trigPin = 12; //D5
@@ -17,22 +17,22 @@ float distanceInch;
 
 void setup() {
    Serial.begin(115200); // Starts the serial communication
-  pinMode(trigPin, OUTPUT); // Sets the trigPin as an Output
-  pinMode(echoPin, INPUT); // Sets the echoPin as an Input
+  pinMode(TRIG_PIN, OUTPUT); // Sets the trigPin as an Output
+  pinMode(ECHO_PIN, INPUT); // Sets the echoPin as an Input
 
 }
 
 void loop() {
   // Clears the trigPin
-  digitalWrite(trigPin, LOW);
+  digitalWrite(TRIG_PIN, LOW);
   delayMicroseconds(2);
   // Sets the trigPin on HIGH state for 10 micro seconds
-  digitalWrite(trigPin, HIGH);
+  digitalWrite(TRIG_PIN, HIGH);
   delayMicroseconds(10);
-  digitalWrite(trigPin, LOW);
+  digitalWrite(TRIG_PIN, LOW);
   
   // Reads the echoPin, returns the sound wave travel time in microseconds
-  duration = pulseIn(echoPin, HIGH);
+  duration = pulseIn(ECHO_PIN, HIGH);
   
   // Calculate the distance
   distanceCm = duration * SOUND_VELOCITY/2;

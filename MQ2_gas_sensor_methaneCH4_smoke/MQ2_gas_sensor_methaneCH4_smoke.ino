@@ -13,25 +13,26 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>. *
  */
 #define LED 2
-#define SENSOR 4
+#define MQ2_PIN 4
 #define DELAY 500
 
 int sensorValue = 0;  // variable to store the value coming from the sensor
 
 void setup() {
-  pinMode(LED, OUTPUT);
+  //pinMode(LED, OUTPUT);
   Serial.begin(115200);
   Serial.println("Sensor start");
 }
 
 void loop() {
-  digitalWrite(LED, HIGH);   // turn the LED on (HIGH is the voltage level)
-  delay(DELAY);              // wait for a second
+  //digitalWrite(LED, HIGH);   // turn the LED on (HIGH is the voltage level)
+  //delay(DELAY);              // wait for a second
   
   // read the value from the sensor:
-  sensorValue = analogRead(SENSOR);
-  Serial.print("Value: "); Serial.println(sensorValue);
+  sensorValue = analogRead(MQ2_PIN);
+  String gasVal2 = String((int)analogRead(MQ2_PIN));
+  Serial.print("Value: "); Serial.println(gasVal2);
  
-  digitalWrite(LED, LOW);    // turn the LED off by making the voltage LOW
+  //digitalWrite(LED, LOW);    // turn the LED off by making the voltage LOW
   delay(DELAY);
 }
