@@ -16,7 +16,11 @@
 #include <DallasTemperature.h>
 //------
 
-const long gmtOffset_sec = 6 * 3600; // GMT+6
+TaskHandle_t scanInputDataSendToFirebaseTaskHandle = NULL;
+TaskHandle_t distanceFunTaskHandle = NULL;
+TaskHandle_t gasFunTaskHandle = NULL;
+
+const long gmtOffset_sec = 6 * 3600;  // GMT+6
 const int daylightOffset_sec = 0;
 
 #define WIFI_SSID "EMRAN"
@@ -46,7 +50,7 @@ unsigned long firebaseDataBaseScanDelay = 10000;  // default
 #define SOUND_VELOCITY 0.034
 #define CM_TO_INCH 0.393701
 long duration;
-float distanceCm;
+float distanceCm = 0.0;
 //float distanceInch;
 
 #define SERVO_DOOR 13
@@ -76,9 +80,13 @@ SemaphoreHandle_t firebaseMutex;
 
 // Setup a oneWire instance to communicate with any OneWire devices
 OneWire oneWire(TEMP_SENSOR_PIN);
-// Pass our oneWire reference to Dallas Temperature sensor 
+// Pass our oneWire reference to Dallas Temperature sensor
 DallasTemperature sensors(&oneWire);
 
+#define FIREBASE_PATH_DTH11 ROOT+"/modules/18/stage"
+#define FIREBASE_PATH_TEMPETATURE ROOT+"/modules/20/stage"
+#define FIREBASE_PATH_MQ2_GAS ROOT+"/modules/17/stage"
+#define FIREBASE_PATH_WATER_LEVEL ROOT+"/modules/19/stage"
 
 void ultrasonicTask(void *pvParameters) {
   pinMode(TRIG_PIN, OUTPUT);
@@ -99,70 +107,128 @@ void ultrasonicTask(void *pvParameters) {
   }
 }
 
-void scanInputDataSendToFirebase(/*void *pvParameters*/) {
+void gasFun(void *pvParameters) {
+ while (true) {
+    int gasVal = analogRead(MQ2_PIN);  // Read gas value from MQ2
+
+    // Protect Firebase access with mutex
+    if (xSemaphoreTake(firebaseMutex, portMAX_DELAY)) {
+      Serial.printf("Gas val: %d\n", gasVal);
+      // if (Firebase.ready()) {
+      //   Firebase.RTDB.setInt(&fbdo, ROOT + "/sensor/gas", gasVal);
+      // }
+      xSemaphoreGive(firebaseMutex);
+    }
+
+    vTaskDelay(5000 / portTICK_PERIOD_MS);  // Wait 5 seconds
+  }
+}
+
+void distanceFun(void *pvParameters) {
   while (1) {
-    // get distance using Ultrasonic sonsor
-  digitalWrite(TRIG_PIN, LOW);
-  delayMicroseconds(2);
-  // Sets the trigPin on HIGH state for 10 micro seconds
-  digitalWrite(TRIG_PIN, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(TRIG_PIN, LOW);
-  // Reads the echoPin, returns the sound wave travel time in microseconds
-  duration = pulseIn(ECHO_PIN, HIGH);
-  // Calculate the distance
-  distanceCm = duration * SOUND_VELOCITY/2;
-  // Convert to inches
-  //distanceInch = distanceCm * CM_TO_INCH;
+    digitalWrite(TRIG_PIN, LOW);
+    delayMicroseconds(2);
+    // Sets the trigPin on HIGH state for 10 micro seconds
+    digitalWrite(TRIG_PIN, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(TRIG_PIN, LOW);
+    // Reads the echoPin, returns the sound wave travel time in microseconds
+    duration = pulseIn(ECHO_PIN, HIGH);
+    // Calculate the distance
+    distanceCm = duration * SOUND_VELOCITY / 2;
+    Serial.println("Distance: " + String(distanceCm) + "cm");
+    // Convert to inches
+    //distanceInch = distanceCm * CM_TO_INCH;
+    vTaskDelay(5000 / portTICK_PERIOD_MS);
+  }
+}
+
+void scanInputDataSendToFirebase2(void *pvParameters) {
+  while (1) {
+    Serial.println("Call fun 2: ");
+    vTaskDelay(1500 / portTICK_PERIOD_MS);
+    if (Firebase.ready() && signupOK && (millis() - sendDataPrevMillis > sendDataIntervalMillis || sendDataPrevMillis == 0)) {
+      sendDataPrevMillis = millis();
+      Serial.println("Firebase.ready: true");
+      try {
+        //if (Firebase.RTDB.getString(&fbdo, ROOT + "/isActive")) {
+        if (readFirebase(ROOT + "/isActive")) {
+
+          String isActive = fbdo.stringData();
+          Serial.println("isActive: " + isActive);
+
+          //DTH11
+          float hum = dht.readHumidity();
+          float temp = dht.readTemperature();
+
+          String val = String(hum) + "%," + String(temp) + "c";
+
+          Serial.println("Environment: " + val);
+          if (isActive = "1") {
+            //writeFirebase(ROOT + "/modules/18/stage", val);
+            writeFirebase(FIREBASE_PATH_DTH11, val);
+            
+          }
+        }
+      } catch (String error) {
+        Serial.println("fire error: " + error);
+      }
+    } else {
+      Serial.println("Firebase.ready: false");
+    }
+  }
+}
+
+void scanInputDataSendToFirebase(void *pvParameters) {
+  while (1) {
 
     if (Firebase.ready() && signupOK && (millis() - sendDataPrevMillis > sendDataIntervalMillis || sendDataPrevMillis == 0)) {
       sendDataPrevMillis = millis();
-      if (Firebase.RTDB.getString(&fbdo, ROOT + "/isActive")) {
+      if (readFirebase(ROOT + "/isActive")) {
 
         String isActive = fbdo.stringData();
 
         //DTH11
         float hum = dht.readHumidity();
         float temp = dht.readTemperature();
-        
+
         String val = String(hum) + "%," + String(temp) + "C";
 
         Serial.println("Environment: " + val);
-        if(isActive="1"){
-          writeFirebase(ROOT + "/modules/18/stage", val);
+        if (isActive = "1") {
+          writeFirebase(FIREBASE_PATH_DTH11, val);
         }
         //delay(5000);
         //-----------------
-        
+
         //DS18B20
-          sensors.requestTemperatures(); 
-          //float temperatureC = sensors.getTempCByIndex(0);
-          //float temperatureF = sensors.getTempFByIndex(0);
-          
-          String tmpVal = String(sensors.getTempCByIndex(0))+"c";
-          Serial.println("Water Temp: " + tmpVal);
-          if(isActive="1"){
-            writeFirebase(ROOT + "/modules/20/stage", tmpVal);
-          }
-          //-----------------
+        sensors.requestTemperatures();
+        //float temperatureC = sensors.getTempCByIndex(0);
+        //float temperatureF = sensors.getTempFByIndex(0);
 
-          //MQ2 Gas
-          delay(500);
-          int gasVal = analogRead(MQ2_PIN);
-          Serial.println("Gas val: " + gasVal);
-          if(isActive="1"){
-            writeFirebase(ROOT + "/modules/17/stage", String(gasVal));
-          }
-          //-----------------
+        String tmpVal = String(sensors.getTempCByIndex(0)) + "c";
+        Serial.println("Water Temp: " + tmpVal);
+        if (isActive = "1") {
+          writeFirebase(FIREBASE_PATH_TEMPETATURE, tmpVal);
+        }
+        //-----------------
 
-          //Water level / Distance
-          Serial.println("distanceCm: " + String(distanceCm));
-          if(isActive="1"){
-            writeFirebase(ROOT + "/modules/19/stage", String(distanceCm)+"cm");
-          }
-          
-          //-----------------
-  
+        //MQ2 Gas
+        // delay(500);
+         int gasVal = analogRead(MQ2_PIN);
+         Serial.println("Gas val: " + gasVal);
+         if (isActive = "1") {
+           writeFirebase(FIREBASE_PATH_MQ2_GAS, String(gasVal));
+         }
+        //-----------------
+
+        //Water level / Distance
+        Serial.println("distanceCm: " + String(distanceCm));
+        if (isActive = "1") {
+          writeFirebase(FIREBASE_PATH_WATER_LEVEL, String(distanceCm) + "cm");
+        }
+        //-----------------
+
         vTaskDelay(firebaseDataBaseScanDelay / portTICK_PERIOD_MS);
       }
     }
@@ -176,23 +242,23 @@ void firebaseTask2(void *pvParameters) {
       sendDataPrevMillis = millis();
       if (Firebase.RTDB.getString(&fbdo, ROOT + "/isActive")) {
 
-     // if (readFirebase(ROOT + "/isActive")) {
+        // if (readFirebase(ROOT + "/isActive")) {
         String isActivie = fbdo.stringData();
 
         float hum = dht.readHumidity();
         float temp = dht.readTemperature();
-       
+
         String val = String(hum) + "%," + String(temp) + "c---c";
 
         Serial.println("temp_val: " + val);
         if (isActivie == "0") {
-         // Firebase.RTDB.setString(&fbdo, ROOT + "/isActive", "1");
+          // Firebase.RTDB.setString(&fbdo, ROOT + "/isActive", "1");
           //Firebase.RTDB.setString(&fbdo, ROOT + "/modules/18/stage", val);
-         writeFirebase(ROOT + "/modules/18/stage", val);
+          writeFirebase(ROOT + "/modules/18/stage", val);
         } else {
-         // Firebase.RTDB.setString(&fbdo, ROOT + "/isActive", "0");
+          // Firebase.RTDB.setString(&fbdo, ROOT + "/isActive", "0");
           //Firebase.RTDB.setString(&fbdo, ROOT + "/modules/18/stage", val);
-         writeFirebase(ROOT + "/modules/18/stage", val);
+          writeFirebase(ROOT + "/modules/18/stage", val);
         }
         //delay(5000);
         vTaskDelay(firebaseDataBaseScanDelay / portTICK_PERIOD_MS);
@@ -210,7 +276,7 @@ void writeFirebase(String path, String value) {
   if (xSemaphoreTake(firebaseMutex, portMAX_DELAY)) {
     if (Firebase.ready()) {
       Firebase.RTDB.setString(&fbdo, path, value);
-      delay(2000);
+      vTaskDelay(2000 / portTICK_PERIOD_MS);
     }
     xSemaphoreGive(firebaseMutex);
   }
@@ -225,7 +291,7 @@ String readFirebase(String path) {
   if (xSemaphoreTake(firebaseMutex, portMAX_DELAY)) {
     if (Firebase.ready() && Firebase.RTDB.getString(&fbdo, path)) {
       result = fbdo.stringData();
-      delay(1000);
+      vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
     xSemaphoreGive(firebaseMutex);
   }
@@ -266,13 +332,13 @@ void setupWiFiAndFirebase() {
   Firebase.reconnectWiFi(true);
 
   String delayVal = readFirebase(ROOT + "/config/firebaseScanDelay");
-  Serial.println("----------delayVal: " + delayVal+"------------");
+  Serial.println("----------delayVal: " + delayVal + "------------");
   if (delayVal != "") {
     firebaseDataBaseScanDelay = delayVal.toInt() * 1000;
   }
 
 
-  configTime( gmtOffset_sec, daylightOffset_sec, "pool.ntp.org", "time.nist.gov");
+  configTime(gmtOffset_sec, daylightOffset_sec, "pool.ntp.org", "time.nist.gov");
   Serial.println("Waiting for NTP time sync...");
   while (time(nullptr) < 100000) {
     vTaskDelay(500 / portTICK_PERIOD_MS);
@@ -283,7 +349,7 @@ void setupWiFiAndFirebase() {
 }
 
 
-String getCurrentTime(){
+String getCurrentTime() {
 
   // Get current time
   time_t now = time(nullptr);
@@ -314,27 +380,28 @@ void setup() {
   servoFood1.attach(SERVO_FOOD_1);
   servoFood2.attach(SERVO_FOOD_2);
 
-  //pinMode(MQ2_PIN, INPUT);
+  pinMode(MQ2_PIN, INPUT);
   //pinMode(TEMP_SENSOR_PIN, INPUT);
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
   pinMode(RELAY_AIR_EXIT_FAN, OUTPUT);
   pinMode(RELAY_INDOOR_FAN, OUTPUT);
 
-  
+
   firebaseMutex = xSemaphoreCreateMutex();
   xSemaphoreGive(firebaseMutex);  // Give it once so it's available
 
   setupWiFiAndFirebase();
 
-  scanInputDataSendToFirebase();
-  
-  //xTaskCreatePinnedToCore(dhtTask, "DHTTask", 3072, NULL, 1, NULL, 0);
+  xTaskCreatePinnedToCore(distanceFun, "distanceFunTaskHandle", 1024, NULL, 1, &distanceFunTaskHandle, 0);
+  xTaskCreatePinnedToCore(scanInputDataSendToFirebase, "scanInputDataSendToFirebaseTaskHandle", 4096, NULL, 1, &scanInputDataSendToFirebaseTaskHandle, 1);
+ // xTaskCreatePinnedToCore(gasFun, "gasFunTaskHandle", 1024, NULL, 1, &gasFunTaskHandle, 0);
+
+
   //xTaskCreatePinnedToCore(firebaseTask, "DHTTask", 3072, NULL, 1, NULL, 0);
   //xTaskCreate(firebaseTask2, "DHTTask", 3072, NULL, 1, NULL);
-
 }
 
-void loop() {
-   
+void loop() { 
+
 }
