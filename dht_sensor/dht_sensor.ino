@@ -3,7 +3,6 @@
 // Uncomment the type of sensor in use:
 #define DHTTYPE    DHT11     // DHT 11
 //#define DHTTYPE    DHT22     // DHT 22 (AM2302)
-/media/emran/karkhana/iOT_project/esp32/multiThredTest/multiThredTest.ino
 DHT dht(DHTPIN, DHTTYPE);
 
 void setup(){
