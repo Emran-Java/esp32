@@ -117,13 +117,13 @@ void gasFun(void *pvParameters) {
       int total = 0;
       for (int i = 0; i < 10; i++) {
         total += analogRead(MQ2_PIN);
-        delay(25);
+        delay(100);
       }
       gasData = total / 10;
       xSemaphoreGive(firebaseMutex);
     }
     Serial.printf("Gas val: %d\n", gasData);
-    vTaskDelay(500 / portTICK_PERIOD_MS);  // Wait 5 seconds
+    vTaskDelay(1500 / portTICK_PERIOD_MS);  // Wait 5 seconds
   }
 }
 
@@ -182,7 +182,7 @@ void scanInputDataSendToFirebase(void *pvParameters) {
 
         //MQ2 Gas
         //int gasVal = analogRead(MQ2_PIN);
-        Serial.println("Gas data: " + gasData);
+        Serial.println("Gas data: " + String(gasData));
         if (isActive = "1") {
           writeFirebase(FIREBASE_PATH_MQ2_GAS, String(gasData));
         }
