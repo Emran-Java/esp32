@@ -19,6 +19,8 @@
 TaskHandle_t scanInputDataSendToFirebaseTaskHandle = NULL;
 TaskHandle_t distanceFunTaskHandle = NULL;
 TaskHandle_t gasFunTaskHandle = NULL;
+TaskHandle_t relayFunTaskHandle = NULL;
+TaskHandle_t readDbStageFunTaskHandle = NULL;
 
 const long gmtOffset_sec = 6 * 3600;  // GMT+6
 const int daylightOffset_sec = 0;
@@ -54,6 +56,8 @@ float distanceCm = 0.0;
 //float distanceInch;
 int gasData = 0;
 
+String isWaterPump_1_On = "0", isWaterPump_2_On = "0";
+
 #define SERVO_DOOR 13
 #define SERVO_FOOD_1 14
 #define SERVO_FOOD_2 15
@@ -67,6 +71,7 @@ int gasData = 0;
 #define RELAY_WATER_PUMP_1 22
 #define RELAY_WATER_PUMP_2 23
 
+//we dont want relay for servo motor
 #define RELAY_SERVO_1_FOOD_STORE 25
 #define RELAY_SERVO_2_FOOD_RE_STORE 26
 #define RELAY_SERVO_3_DOOR 32
@@ -88,6 +93,44 @@ DallasTemperature sensors(&oneWire);
 #define FIREBASE_PATH_TEMPETATURE ROOT + "/modules/20/stage"
 #define FIREBASE_PATH_MQ2_GAS ROOT + "/modules/17/stage"
 #define FIREBASE_PATH_WATER_LEVEL ROOT + "/modules/19/stage"
+#define FIREBASE_PATH_PUMP_1 ROOT + "/modules/5/stage"
+#define FIREBASE_PATH_PUMP_2 ROOT + "/modules/6/stage"
+
+
+
+void readDbStageFun(void *pvParameters) {
+  while (true) {
+    //isWaterPump_1_On = readFirebase(FIREBASE_PATH_PUMP_1);
+     if (Firebase.ready() && Firebase.RTDB.getString(&fbdo, FIREBASE_PATH_PUMP_1)) {
+      isWaterPump_1_On = fbdo.stringData();
+      vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
+    
+    //isWaterPump_2_On = readFirebase(FIREBASE_PATH_PUMP_2);
+
+    vTaskDelay(firebaseDataBaseScanDelay / portTICK_PERIOD_MS);
+  }
+}
+
+void relayFun(void *pvParameters) {
+  while (true) {
+    if(isWaterPump_1_On=="1"){
+      digitalWrite(RELAY_WATER_PUMP_1, LOW); // ON
+      Serial.println("Water pump 1 Relay ON");
+    }else{
+        digitalWrite(RELAY_WATER_PUMP_1, HIGH); // OFF
+    }
+
+    if(isWaterPump_2_On=="1"){
+      digitalWrite(RELAY_WATER_PUMP_2, LOW); // ON
+      Serial.println("Water pump 2 Relay ON");
+    }else{
+        digitalWrite(RELAY_WATER_PUMP_2, HIGH); // OFF
+    }
+    vTaskDelay(1500 / portTICK_PERIOD_MS);  // Wait 1.5 seconds
+  }
+  
+}
 
 void ultrasonicTask(void *pvParameters) {
   pinMode(TRIG_PIN, OUTPUT);
@@ -123,7 +166,7 @@ void gasFun(void *pvParameters) {
       xSemaphoreGive(firebaseMutex);
     }
     Serial.printf("Gas val: %d\n", gasData);
-    vTaskDelay(1500 / portTICK_PERIOD_MS);  // Wait 5 seconds
+    vTaskDelay(1500 / portTICK_PERIOD_MS);  // Wait 1.5 seconds
   }
 }
 
@@ -319,6 +362,8 @@ void setup() {
   pinMode(ECHO_PIN, INPUT);
   pinMode(RELAY_AIR_EXIT_FAN, OUTPUT);
   pinMode(RELAY_INDOOR_FAN, OUTPUT);
+  pinMode(RELAY_WATER_PUMP_1, OUTPUT);
+  pinMode(RELAY_WATER_PUMP_2, OUTPUT);
 
 
   firebaseMutex = xSemaphoreCreateMutex();
@@ -329,6 +374,8 @@ void setup() {
   xTaskCreatePinnedToCore(distanceFun, "distanceFunTaskHandle", 1024, NULL, 1, &distanceFunTaskHandle, 0);
   xTaskCreatePinnedToCore(scanInputDataSendToFirebase, "scanInputDataSendToFirebaseTaskHandle", 4096, NULL, 1, &scanInputDataSendToFirebaseTaskHandle, 1);
   xTaskCreatePinnedToCore(gasFun, "gasFunTaskHandle", 1024, NULL, 1, &gasFunTaskHandle, 0);
+  xTaskCreatePinnedToCore(relayFun, "relayFun", 1024, NULL, 1, &relayFunTaskHandle, 0);
+  xTaskCreatePinnedToCore(readDbStageFun, "readDbStageFun", 4096, NULL, 1, &readDbStageFunTaskHandle, 1); // not working
 
 }
 
