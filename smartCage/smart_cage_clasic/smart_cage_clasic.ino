@@ -2,7 +2,8 @@
 // Author: Bionic Orbit
 
 #include <Arduino.h>
-#include <WiFi.h>
+//#include <WiFi.h>
+#include <WiFiManager.h>  // https://github.com/tzapu/WiFiManager
 #include <DHT.h>
 #include <Firebase_ESP_Client.h>
 #include "addons/TokenHelper.h"
@@ -394,12 +395,25 @@ void firebaseConfigTask(void *pvParameters) {
 
 
 void setupWiFiAndFirebase() {
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  while (WiFi.status() != WL_CONNECTED) {
-    vTaskDelay(500 / portTICK_PERIOD_MS);
-    Serial.print(".");
+  // WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  // while (WiFi.status() != WL_CONNECTED) {
+  //   vTaskDelay(500 / portTICK_PERIOD_MS);
+  //   Serial.print(".");
+  // }
+  
+  WiFiManager wm;
+  bool res;
+  //res = wm.autoConnect();  // auto generated AP name from chipid
+  res = wm.autoConnect("bo_wifi_8");  // anonymous ap 
+
+  if (!res) {
+    Serial.println("Failed to connect");
+    // ESP.restart();
+  } else {
+    //if you get here you have connected to the WiFi
+    //Serial.println("connected...with ronok :)");
+    Serial.println("\nConnected to Wi-Fi");
   }
-  Serial.println("\nConnected to Wi-Fi");
 
   config.api_key = API_KEY;
   config.database_url = DATABASE_URL;
