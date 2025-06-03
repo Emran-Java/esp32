@@ -28,8 +28,8 @@ const int daylightOffset_sec = 0;
 //#define WIFI_SSID "EMRAN"
 //#define WIFI_PASSWORD "44332211"
 
-#define WIFI_SSID "emran"
-#define WIFI_PASSWORD "kihobe123456"
+#define WIFI_SSID "EMRAN"
+#define WIFI_PASSWORD "44332211"
 
 #define API_KEY "AIzaSyBU3igkoS3L7YgymYQE9Wb9qID95UJ7yjY"
 #define DATABASE_URL "https://power-plug-iot-default-rtdb.asia-southeast1.firebasedatabase.app/"
@@ -65,10 +65,10 @@ String isWaterPump_1_On = "0", isWaterPump_2_On = "0";
 bool isListenDbchange = true;
 
 bool isChabgeServo1 = false, isChangeServo2 = false;
-String seroFeedLocker1Stage = "0", schedulServo1 = "2";  // 0 = close; 90 = open
-String seroFeedLocker2Stage = "0", schedulServo2 = "2";
+String servoFeedLocker1Stage = "0", schedulServo1 = "2";  // 0 = close; 90 = open
+String servoFeedLocker2Stage = "0", schedulServo2 = "2";
 ;  // 0 = close; 90 = open
-int servoFood1Close = 90, servoFood2Close = 90;
+int servoFood1Close = 180, servoFood2Close = 90;
 
 #define SERVO_DOOR 13
 #define SERVO_FOOD_1 14
@@ -151,61 +151,64 @@ void readDbStageFun() {
 
   //scan feed store Servo
   if (Firebase.ready() && Firebase.RTDB.getString(&fbdo, FIREBASE_PATH_SERVO_FEED_1)) {
-    seroFeedLocker1Stage = fbdo.stringData();
+    servoFeedLocker1Stage = fbdo.stringData();
     isChabgeServo1 = true;
     if (Firebase.RTDB.getString(&fbdo, FIREBASE_PATH_SERVO_FEED_1_SCHEDULE)) {
       schedulServo1 = fbdo.stringData();
     }
-    Serial.println(" ~~~~~~ seroFeedLocker1Stage :" + seroFeedLocker1Stage + " ~~~~~~");
+    Serial.println(" ~~~~~~ servoFeedLocker1Stage :" + servoFeedLocker1Stage + " ~~~~~~");
   }
 
   if (Firebase.ready() && Firebase.RTDB.getString(&fbdo, FIREBASE_PATH_SERVO_FEED_2)) {
-    seroFeedLocker2Stage = fbdo.stringData();
+    servoFeedLocker2Stage = fbdo.stringData();
     isChangeServo2 = true;
     if (Firebase.RTDB.getString(&fbdo, FIREBASE_PATH_SERVO_FEED_2_SCHEDULE)) {
       schedulServo2 = fbdo.stringData();
     }
-    Serial.println(" ~~~~~~ seroFeedLocker1Stage :" + seroFeedLocker2Stage + " ~~~~~~");
+    Serial.println(" ~~~~~~ servoFeedLocker2Stage :" + servoFeedLocker2Stage + " ~~~~~~");
   }
 
   //isWaterPump_2_On = readFirebase(FIREBASE_PATH_PUMP_2);
-  vTaskDelay(firebaseDataBaseScanDelay / portTICK_PERIOD_MS);
+  //vTaskDelay(firebaseDataBaseScanDelay / portTICK_PERIOD_MS);
   //}
 }
 
 void servoFun() {
   //------------------ servo 1 ------------------
-  // 0 = close door(FeedLocker1); 90 = open door
-  if (seroFeedLocker1Stage.length() < 0) {
-    seroFeedLocker1Stage = "0";
+  // 180 = close door(FeedLocker1); 90 = open door
+  if (servoFeedLocker1Stage.length() < 0) {
+    servoFeedLocker1Stage = "0";
   }
   //closs to open
   if (isChabgeServo1) {
     isChabgeServo1 = false;
-    servoFood1.write(seroFeedLocker1Stage.toInt());
+    servoFood1.write(servoFeedLocker1Stage.toInt());
+    //isListenDbchange = false;
+    writeFirebase(FIREBASE_PATH_SERVO_FEED_1, String(servoFood1Close));
+    vTaskDelay((schedulServo1.toInt() * 500) / portTICK_PERIOD_MS);
+    //isListenDbchange = true;
+    servoFood1.write(servoFood1Close);
   }
-  isListenDbchange = false;
-  writeFirebase(FIREBASE_PATH_SERVO_FEED_1, String(servoFood1Close));
-  vTaskDelay((schedulServo1.toInt() * 1000) / portTICK_PERIOD_MS);
-  isListenDbchange = true;
-  servoFood1.write(servoFood1Close);
+      
+  
   //------------------------------------------------
 
   //------------------ servo 2 ------------------
   // 0 = close door(FeedLocker1); 90 = open door
-  if (seroFeedLocker2Stage.length() < 0) {
-    seroFeedLocker2Stage = "0";
+  if (servoFeedLocker2Stage.length() < 0) {
+    servoFeedLocker2Stage = "0";
   }
   //closs to open
   if (isChangeServo2) {
     isChangeServo2 = false;
-    servoFood2.write(seroFeedLocker2Stage.toInt());
+    servoFood2.write(servoFeedLocker2Stage.toInt());
+    //isListenDbchange = false;
+    writeFirebase(FIREBASE_PATH_SERVO_FEED_2, String(servoFood2Close));
+    vTaskDelay((schedulServo2.toInt() * 1000) / portTICK_PERIOD_MS);
+    //isListenDbchange = true;
+    servoFood2.write(servoFood2Close);
   }
-  isListenDbchange = false;
-  writeFirebase(FIREBASE_PATH_SERVO_FEED_2, String(servoFood2Close));
-  vTaskDelay((schedulServo2.toInt() * 1000) / portTICK_PERIOD_MS);
-  isListenDbchange = true;
-  servoFood1.write(servoFood2Close);
+    
   
   //------------------------------------------------
 }
@@ -216,6 +219,8 @@ void relayFun() {
   if (isWaterPump_1_On == "1") {
     Serial.println("Water pump 1 Relay ON");
     digitalWrite(RELAY_WATER_PUMP_1, LOW);  // ON
+    servoFood2.write(servoFood2Close);
+    servoFood1.write(servoFood1Close);
   } else {
     digitalWrite(RELAY_WATER_PUMP_1, HIGH);  // OFF
   }
@@ -224,10 +229,12 @@ void relayFun() {
   if (isWaterPump_2_On == "1") {
     Serial.println("Water pump 2 Relay ON");
     digitalWrite(RELAY_WATER_PUMP_2, LOW);  // ON
+    servoFood2.write(servoFood2Close);
+    servoFood1.write(servoFood1Close);
   } else {
     digitalWrite(RELAY_WATER_PUMP_2, HIGH);  // OFF
   }
-  vTaskDelay(1500 / portTICK_PERIOD_MS);  // Wait 1.5 seconds
+  vTaskDelay(500 / portTICK_PERIOD_MS);  // Wait 1.5 seconds
   //}
 }
 

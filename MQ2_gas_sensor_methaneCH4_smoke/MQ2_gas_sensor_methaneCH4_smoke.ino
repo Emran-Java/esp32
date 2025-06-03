@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>. *
  */
 #define LED 2
-#define MQ2_PIN 4
+#define MQ2_PIN 34
 #define DELAY 500
 
 int sensorValue = 0;  // variable to store the value coming from the sensor
