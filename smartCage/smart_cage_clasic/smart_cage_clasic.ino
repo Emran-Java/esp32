@@ -78,16 +78,12 @@ int servoFood1Close = 180, servoFood2Close = 90;
 #define DHT_PIN 27
 #define MQ2_PIN 34
 #define TEMP_SENSOR_PIN 33
+#define LIGHT_SENSOR_PIN 36 
 
 #define RELAY_AIR_EXIT_FAN 19
 #define RELAY_INDOOR_FAN 21
 #define RELAY_WATER_PUMP_1 22
 #define RELAY_WATER_PUMP_2 23
-
-//we dont want relay for servo motor
-#define RELAY_SERVO_1_FOOD_STORE 25
-#define RELAY_SERVO_2_FOOD_RE_STORE 26
-#define RELAY_SERVO_3_DOOR 32
 
 #define RELAY_LIGHT_1 12
 #define RELAY_ROOM_HEATER 2
