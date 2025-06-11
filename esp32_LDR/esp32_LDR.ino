@@ -1,5 +1,5 @@
 #include <math.h>
-#define LIGHT_SENSOR_PIN 25 // ESP32 pin GIOP36 (ADC0)
+#define LIGHT_SENSOR_PIN 25 // ESP32 pin 25 (ADC0)
 
 void setup() {
   Serial.begin(115200);

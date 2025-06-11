@@ -17,8 +17,10 @@
 #include <DallasTemperature.h>
 //------
 
+#include <math.h>
+
 //TaskHandle_t scanInputDataSendToFirebaseTaskHandle = NULL;
-TaskHandle_t distanceFunTaskHandle = NULL;
+TaskHandle_t distanceFunTaskHandle = NULL, mq2FunTaskHandle = NULL, lightFunTaskHandle = NULL;
 // TaskHandle_t gasFunTaskHandle = NULL;
 // TaskHandle_t relayFunTaskHandle = NULL;
 // TaskHandle_t readDbStageFunTaskHandle = NULL;
@@ -61,10 +63,10 @@ unsigned long firebaseDataBaseScanDelay = 1000;  // default
 #define DHT_PIN 27
 #define MQ2_PIN 34
 #define TEMP_SENSOR_PIN 33
-#define LIGHT_SENSOR_PIN 36 
+#define LIGHT_SENSOR_PIN 25
 //-------------------------
 
-// output 
+// output
 #define SERVO_DOOR 13
 #define SERVO_FOOD_1 14
 #define SERVO_FOOD_2 15
@@ -85,14 +87,16 @@ float distanceCm = 0.0;
 int gasData = 0;
 
 String isWaterPump_1_On = "0", isWaterPump_2_On = "0";
+String isIndoreFan_On = "0", isAireExit_On = "0";
+String isLight1_on = "0", isRoomHeater_on = "0";
 bool isListenDbchange = true;
 
 bool isChabgeServo1 = false, isChangeServo2 = false, isChangeServoDoor = false;
-String servoDoorLockerStage = "0", schedulDoorServo = "5";  
+String servoDoorLockerStage = "0", schedulDoorServo = "5";
 String servoFeedLocker1Stage = "0", schedulServo1 = "2";
 String servoFeedLocker2Stage = "0", schedulServo2 = "2";
 ;  // 0 = close; 90 = open
-int servoDoorClose=0, servoFood1Close = 180, servoFood2Close = 90;
+int servoDoorClose = 0, servoFood1Close = 180, servoFood2Close = 90;
 
 
 
@@ -114,8 +118,12 @@ DallasTemperature sensors(&oneWire);
 #define FIREBASE_PATH_WATER_LEVEL ROOT + "/sensors/3/stage"
 #define FIREBASE_PATH_TEMPETATURE ROOT + "/sensors/4/stage"
 
+#define FIREBASE_PATH_AIRE_EXIT_FAN ROOT + "/modules/0/stage"
+#define FIREBASE_PATH_INDOOR_FAN ROOT + "/modules/1/stage"
 #define FIREBASE_PATH_PUMP_1 ROOT + "/modules/5/stage"
 #define FIREBASE_PATH_PUMP_2 ROOT + "/modules/6/stage"
+#define FIREBASE_PATH_LIGHT_1 ROOT + "/modules/2/stage"
+#define FIREBASE_PATH_ROOM_HEATER ROOT + "/modules/10/stage"
 
 #define FIREBASE_PATH_SERVO_DOOR ROOT + "/modules/14/stage"
 #define FIREBASE_PATH_SERVO_DOOR_SCHEDULE ROOT + "/modules/14/schedule"
@@ -142,8 +150,33 @@ void streamTimeoutCallback(bool timeout) {
 
 void readDbStageFun() {
   //while (true) {
-  //isWaterPump_1_On = readFirebase(FIREBASE_PATH_PUMP_1);
   Serial.println("------ readDbStageFun ------");
+
+  if (Firebase.ready() && Firebase.RTDB.getString(&fbdo, FIREBASE_PATH_ROOM_HEATER)) {
+    isRoomHeater_on = fbdo.stringData();
+    Serial.println("------ isRoomHeater_on :" + isRoomHeater_on + " ------");
+  }
+
+  if (Firebase.ready() && Firebase.RTDB.getString(&fbdo, FIREBASE_PATH_LIGHT_1)) {
+    isLight1_on = fbdo.stringData();
+    Serial.println("------ isLight1_on :" + isLight1_on + " ------");
+  }
+
+  if (Firebase.ready() && Firebase.RTDB.getString(&fbdo, FIREBASE_PATH_AIRE_EXIT_FAN)) {
+    isAireExit_On = fbdo.stringData();
+    Serial.println("------ isAireExit_On :" + isAireExit_On + " ------");
+  }
+
+  if (Firebase.ready() && Firebase.RTDB.getString(&fbdo, FIREBASE_PATH_INDOOR_FAN)) {
+    isIndoreFan_On = fbdo.stringData();
+    Serial.println("------ isIndoreFan_On :" + isIndoreFan_On + " ------");
+  }
+  Serial.println("------ _______________ ------");
+
+
+
+  //isWaterPump_1_On = readFirebase(FIREBASE_PATH_PUMP_1);
+
   if (Firebase.ready() && Firebase.RTDB.getString(&fbdo, FIREBASE_PATH_PUMP_1)) {
 
     isWaterPump_1_On = fbdo.stringData();
@@ -176,7 +209,7 @@ void readDbStageFun() {
   }
 
   // scan door servo
-   if (Firebase.ready() && Firebase.RTDB.getString(&fbdo, FIREBASE_PATH_SERVO_DOOR)) {
+  if (Firebase.ready() && Firebase.RTDB.getString(&fbdo, FIREBASE_PATH_SERVO_DOOR)) {
     servoDoorLockerStage = fbdo.stringData();
     isChangeServoDoor = true;
     if (Firebase.RTDB.getString(&fbdo, FIREBASE_PATH_SERVO_DOOR_SCHEDULE)) {
@@ -206,7 +239,7 @@ void servoFun() {
     vTaskDelay((schedulServo1.toInt() * 500) / portTICK_PERIOD_MS);
     //isListenDbchange = true;
     servoFood1.write(servoFood1Close);
-  }  
+  }
   //------------------------------------------------
 
   //------------------ servo 2 ------------------
@@ -223,30 +256,62 @@ void servoFun() {
     vTaskDelay((schedulServo2.toInt() * 1000) / portTICK_PERIOD_MS);
     //isListenDbchange = true;
     servoFood2.write(servoFood2Close);
-  } 
+  }
   //------------------------------------------------
 
   //------------------ servo door ------------------
-   if (servoDoorLockerStage.length() < 0) {
-    servoDoorLockerStage = "0";    //set default 0 as close
+  if (servoDoorLockerStage.length() < 0) {
+    servoDoorLockerStage = "0";  //set default 0 as close
   }
   //door closs to open
   if (isChangeServoDoor) {
     isChangeServoDoor = false;
     servoDoor.write(servoDoorLockerStage.toInt());
-    Serial.println("|> Servi Door "+servoDoorLockerStage+", Shedule: "+schedulDoorServo+"<|");
+    Serial.println("|> Servi Door " + servoDoorLockerStage + ", Shedule: " + schedulDoorServo + "<|");
     writeFirebase(FIREBASE_PATH_SERVO_DOOR, String(servoDoorClose));
     vTaskDelay((schedulDoorServo.toInt() * 1000) / portTICK_PERIOD_MS);
     servoFood2.write(servoDoorClose);
-  } 
+  }
   //------------------------------------------------
 }
 
 void relayFun() {
   //while (true) {
+  Serial.println("Room Heater Relay " + isRoomHeater_on);
+  if (isRoomHeater_on == "1") {
+    //Serial.println("Room Heater Relay ON");
+    digitalWrite(RELAY_ROOM_HEATER, LOW);  // ON
+  } else {
+    digitalWrite(RELAY_ROOM_HEATER, HIGH);  // OFF
+  }
+
+  Serial.println("Indore Light Relay " + isLight1_on);
+  if (isLight1_on == "1") {
+    //Serial.println("Indor Light Relay ON");
+    digitalWrite(RELAY_LIGHT_1, LOW);  // ON
+  } else {
+    digitalWrite(RELAY_LIGHT_1, HIGH);  // OFF
+  }
+
+  Serial.println("Indore fane Relay " + isIndoreFan_On);
+  if (isIndoreFan_On == "1") {
+    //Serial.println("Indor fan Relay ON");
+    digitalWrite(RELAY_INDOOR_FAN, LOW);  // ON
+  } else {
+    digitalWrite(RELAY_INDOOR_FAN, HIGH);  // OFF
+  }
+
+  Serial.println("AireExit Relay " + isAireExit_On);
+  if (isAireExit_On == "1") {
+    //Serial.println("Aire exit Relay ON");
+    digitalWrite(RELAY_AIR_EXIT_FAN, LOW);  // ON
+  } else {
+    digitalWrite(RELAY_AIR_EXIT_FAN, HIGH);  // OFF
+  }
+
   Serial.println("Water pump 1 Relay " + isWaterPump_1_On);
   if (isWaterPump_1_On == "1") {
-    Serial.println("Water pump 1 Relay ON");
+    //Serial.println("Water pump 1 Relay ON");
     digitalWrite(RELAY_WATER_PUMP_1, LOW);  // ON
     servoFood2.write(servoFood2Close);
     servoFood1.write(servoFood1Close);
@@ -256,7 +321,7 @@ void relayFun() {
 
   Serial.println("Water pump 2 Relay " + isWaterPump_2_On);
   if (isWaterPump_2_On == "1") {
-    Serial.println("Water pump 2 Relay ON");
+    //Serial.println("Water pump 2 Relay ON");
     digitalWrite(RELAY_WATER_PUMP_2, LOW);  // ON
     servoFood2.write(servoFood2Close);
     servoFood1.write(servoFood1Close);
@@ -267,6 +332,53 @@ void relayFun() {
   //}
 }
 
+
+//##### lifgt sensor #####
+void lightSensor() {
+  int analogValue = 0;
+
+  double avg = 0.0;
+  for (int i = 0; i < 10; i++) {
+    analogValue = analogRead(LIGHT_SENSOR_PIN);
+    avg = avg + analogValue;
+    delay(200);
+  }
+  analogValue = avg / 10.0;
+  Serial.print("Analog Value = ");
+  Serial.print(analogValue);  // the raw analog reading
+  Serial.print(" " + getLightingCondition(analogValue));
+  Serial.println(" lux: " + String(getLux(analogValue)));
+}
+
+String getLightingCondition(int analogValue) {
+  if (analogValue >= 3500) {
+    return "Very bright (Bright sunlight)";
+  } else if (analogValue >= 2000) {
+    return "Bright (Bright indoor lighting)";
+  } else if (analogValue >= 1000) {
+    return "Moderate (Indoor dim lighting)";
+  } else if (analogValue >= 300) {
+    return "Dim (Low ambient light)";
+  } else if (analogValue >= 50) {
+    return "Dark (Almost dark)";
+  } else {
+    return "Very dark / Night";
+  }
+}
+
+//To convert the analog reading from an LDR (Light Dependent Resistor) to illuminance in lux (lx)
+float getLux(int adcVal) {
+
+  float voltage = adcVal * (3.3 / 4095.0);  // Convert to volts, 3.3 is input voltage
+
+  float Rldr = (3.3 * 10000.0 / voltage) - 10000.0;  // Resistance in ohms, we use 10K reg
+  float lux = 500 / pow(Rldr / 1000.0, 1.4);         // Estimate Lux
+  return lux;
+}
+//##### _______ end lifgt sensor _______ #####
+
+
+/*
 void ultrasonicTask(void *pvParameters) {
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
@@ -279,12 +391,12 @@ void ultrasonicTask(void *pvParameters) {
 
     long duration = pulseIn(ECHO_PIN, HIGH);
     float distance = duration * 0.034 / 2;
-    Serial.print("Distance: ");
-    Serial.println(distance);
-
+    //Serial.print("Distance: ");
+    //Serial.println(distance);
     delay(5000);
   }
 }
+*/
 
 void gasFun() {
   //while (true) {
@@ -305,6 +417,19 @@ void gasFun() {
   //}
 }
 
+
+void mq2Fun(void *pvParameters) {
+  while (1) {
+    gasFun();
+  }
+}
+
+void lightFun(void *pvParameters) {
+  while (1) {
+    lightSensor();
+  }
+}
+
 void distanceFun(void *pvParameters) {
   while (1) {
     digitalWrite(TRIG_PIN, LOW);
@@ -317,7 +442,7 @@ void distanceFun(void *pvParameters) {
     duration = pulseIn(ECHO_PIN, HIGH);
     // Calculate the distance
     distanceCm = duration * SOUND_VELOCITY / 2;
-    Serial.println("Distance: " + String(distanceCm) + "cm");
+    //Serial.println("Distance: " + String(distanceCm) + "cm");
     // Convert to inches
     //distanceInch = distanceCm * CM_TO_INCH;
     //writeFirebase(FIREBASE_PATH_WATER_LEVEL, String(distanceCm) + "cm");
@@ -334,47 +459,44 @@ void scanInputDataSendToFirebase(/*void *pvParameters*/) {
 
       String isActive = fbdo.stringData();
 
-      //DTH11
-      float hum = dht.readHumidity();
-      float temp = dht.readTemperature();
-
-      String val = String(hum) + "%," + String(temp) + "c";
-
-      Serial.println("Environment: " + val);
       if (isActive = "1") {
+        Serial.println(" === Start send sensor data to FB DB ===");
+        Serial.println("");
+
+        //DTH11
+        float hum = dht.readHumidity();
+        float temp = dht.readTemperature();
+        String val = String(hum) + "%," + String(temp) + "c";
+        Serial.println(" ('.') Environment: " + val);
         writeFirebase(FIREBASE_PATH_DTH11, val);
-      }
-      //delay(5000);
-      //-----------------
 
-      //DS18B20
-      sensors.requestTemperatures();
-      //float temperatureC = sensors.getTempCByIndex(0);
-      //float temperatureF = sensors.getTempFByIndex(0);
+        //delay(5000);
+        //-----------------
 
-      String tmpVal = String(sensors.getTempCByIndex(0)) + "c";
-      Serial.println("Water Temp: " + tmpVal);
-      if (isActive == "1") {
+        //DS18B20
+        sensors.requestTemperatures();
+        //float temperatureC = sensors.getTempCByIndex(0);
+        //float temperatureF = sensors.getTempFByIndex(0);
+
+        String tmpVal = String(sensors.getTempCByIndex(0)) + "c";
+        Serial.println("....Water Temp: " + tmpVal + "");
         writeFirebase(FIREBASE_PATH_TEMPETATURE, tmpVal);
-      }
-      //-----------------
+        //-----------------
 
-      //MQ2 Gas
-      //int gasVal = analogRead(MQ2_PIN);
-      Serial.println("Gas data: " + String(gasData));
-      if (isActive == "1") {
+        //MQ2 Gas
+        //int gasVal = analogRead(MQ2_PIN);
+        Serial.println("Gas data: " + String(gasData));
         writeFirebase(FIREBASE_PATH_MQ2_GAS, String(gasData));
-      }
-      //-----------------
+        //-----------------
 
-      //Water level / Distance
-      Serial.println("distanceCm: " + String(distanceCm));
-      if (isActive == "1") {
+        //Water level / Distance
+        Serial.println("distance Cm: " + String(distanceCm));
         writeFirebase(FIREBASE_PATH_WATER_LEVEL, String(distanceCm) + "cm");
-      }
-      //-----------------
+        //-----------------
 
-      vTaskDelay(firebaseDataBaseScanDelay / portTICK_PERIOD_MS);
+        Serial.println("");
+        vTaskDelay(firebaseDataBaseScanDelay / portTICK_PERIOD_MS);
+      }
     }
   }
   //}
@@ -428,11 +550,11 @@ void setupWiFiAndFirebase() {
   //   vTaskDelay(500 / portTICK_PERIOD_MS);
   //   Serial.print(".");
   // }
-  
+
   WiFiManager wm;
   bool res;
   //res = wm.autoConnect();  // auto generated AP name from chipid
-  res = wm.autoConnect("bo_wifi_8");  // anonymous ap 
+  res = wm.autoConnect("bo_wifi_8");  // anonymous ap
 
   if (!res) {
     Serial.println("Failed to connect");
@@ -499,8 +621,10 @@ String getCurrentTime() {
 void setup() {
   Serial.begin(115200);
 
+  analogReadResolution(12);  //ESP32 ADC resolution: 0–4095
   //helping setting for MQ2
   analogSetAttenuation(ADC_11db);  //for inpur Gas data, improve ADC range/accuracy
+
 
   // Start the DTH11 sensor
   dht.begin();
@@ -511,12 +635,14 @@ void setup() {
   servoDoor.attach(SERVO_DOOR);
   servoFood1.attach(SERVO_FOOD_1);
   servoFood2.attach(SERVO_FOOD_2);
-  
+
   servoDoor.write(servoDoorClose);
   servoFood1.write(servoFood1Close);
   servoFood2.write(servoFood2Close);
 
   pinMode(MQ2_PIN, INPUT);
+  //pinMode(LIGHT_SENSOR_PIN, INPUT);
+
   //pinMode(TEMP_SENSOR_PIN, INPUT);
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
@@ -524,24 +650,25 @@ void setup() {
   pinMode(RELAY_INDOOR_FAN, OUTPUT);
   pinMode(RELAY_WATER_PUMP_1, OUTPUT);
   pinMode(RELAY_WATER_PUMP_2, OUTPUT);
+  pinMode(RELAY_LIGHT_1, OUTPUT);
+  pinMode(RELAY_ROOM_HEATER, OUTPUT);
 
   //set relay default value
   digitalWrite(RELAY_WATER_PUMP_1, HIGH);
   digitalWrite(RELAY_WATER_PUMP_2, HIGH);
-
-
+  digitalWrite(RELAY_AIR_EXIT_FAN, HIGH);
+  digitalWrite(RELAY_INDOOR_FAN, HIGH);
+  digitalWrite(RELAY_LIGHT_1, HIGH);
+  digitalWrite(RELAY_ROOM_HEATER, HIGH);
 
   //firebaseMutex = xSemaphoreCreateMutex();
   //xSemaphoreGive(firebaseMutex);  // Give it once so it's available
 
   setupWiFiAndFirebase();
 
-  xTaskCreatePinnedToCore(distanceFun, "distanceFunTaskHandle", 1024, NULL, 1, &distanceFunTaskHandle, 0);
-  //xTaskCreatePinnedToCore(scanInputDataSendToFirebase, "scanInputDataSendToFirebaseTaskHandle", 4096, NULL, 1, &scanInputDataSendToFirebaseTaskHandle, 1);
-  /*xTaskCreatePinnedToCore(gasFun, "gasFunTaskHandle", 1024, NULL, 1, &gasFunTaskHandle, 0);
-  xTaskCreatePinnedToCore(relayFun, "relayFun", 1024, NULL, 1, &relayFunTaskHandle, 0);
-  xTaskCreatePinnedToCore(readDbStageFun, "readDbStageFun", 4096, NULL, 1, &readDbStageFunTaskHandle, 1);
-*/
+  xTaskCreatePinnedToCore(distanceFun, "distanceFunTaskHandle", 2024, NULL, 1, &distanceFunTaskHandle, 0);
+  xTaskCreatePinnedToCore(mq2Fun, "mq2FunTaskHandle", 2024, NULL, 1, &mq2FunTaskHandle, 1);
+  xTaskCreatePinnedToCore(lightFun, "lightFunTaskHandle", 2024, NULL, 1, &lightFunTaskHandle, 0);
 }
 
 void loop() {
@@ -551,7 +678,9 @@ void loop() {
   if (isListenDbchange) {
     Firebase.RTDB.readStream(&stream);  // Keep polling
   }
-  delay(100);                         // Or run this in a FreeRTOS task
+  delay(100);  // Or run this in a FreeRTOS task
+
+  //lightSensor();
   //distanceFun();
   scanInputDataSendToFirebase();
   // gasFun();
