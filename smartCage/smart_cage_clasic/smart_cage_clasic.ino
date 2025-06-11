@@ -52,33 +52,22 @@ const long sendDataIntervalMillis = 1000;
 
 unsigned long firebaseDataBaseScanDelay = 1000;  // default
 
-// GPIO Pin Definitions
+// for input GPIO Pin Definitions
 #define TRIG_PIN 5
 #define ECHO_PIN 18
 #define SOUND_VELOCITY 0.034
 #define CM_TO_INCH 0.393701
-long duration;
-float distanceCm = 0.0;
-//float distanceInch;
-int gasData = 0;
-
-String isWaterPump_1_On = "0", isWaterPump_2_On = "0";
-bool isListenDbchange = true;
-
-bool isChabgeServo1 = false, isChangeServo2 = false;
-String servoFeedLocker1Stage = "0", schedulServo1 = "2";  // 0 = close; 90 = open
-String servoFeedLocker2Stage = "0", schedulServo2 = "2";
-;  // 0 = close; 90 = open
-int servoFood1Close = 180, servoFood2Close = 90;
-
-#define SERVO_DOOR 13
-#define SERVO_FOOD_1 14
-#define SERVO_FOOD_2 15
 
 #define DHT_PIN 27
 #define MQ2_PIN 34
 #define TEMP_SENSOR_PIN 33
 #define LIGHT_SENSOR_PIN 36 
+//-------------------------
+
+// output 
+#define SERVO_DOOR 13
+#define SERVO_FOOD_1 14
+#define SERVO_FOOD_2 15
 
 #define RELAY_AIR_EXIT_FAN 19
 #define RELAY_INDOOR_FAN 21
@@ -87,6 +76,25 @@ int servoFood1Close = 180, servoFood2Close = 90;
 
 #define RELAY_LIGHT_1 12
 #define RELAY_ROOM_HEATER 2
+//-------------------------
+
+
+long duration;
+float distanceCm = 0.0;
+//float distanceInch;
+int gasData = 0;
+
+String isWaterPump_1_On = "0", isWaterPump_2_On = "0";
+bool isListenDbchange = true;
+
+bool isChabgeServo1 = false, isChangeServo2 = false, isChangeServoDoor = false;
+String servoDoorLockerStage = "0", schedulDoorServo = "5";  
+String servoFeedLocker1Stage = "0", schedulServo1 = "2";
+String servoFeedLocker2Stage = "0", schedulServo2 = "2";
+;  // 0 = close; 90 = open
+int servoDoorClose=0, servoFood1Close = 180, servoFood2Close = 90;
+
+
 
 
 DHT dht(DHT_PIN, DHT11);
@@ -109,6 +117,8 @@ DallasTemperature sensors(&oneWire);
 #define FIREBASE_PATH_PUMP_1 ROOT + "/modules/5/stage"
 #define FIREBASE_PATH_PUMP_2 ROOT + "/modules/6/stage"
 
+#define FIREBASE_PATH_SERVO_DOOR ROOT + "/modules/14/stage"
+#define FIREBASE_PATH_SERVO_DOOR_SCHEDULE ROOT + "/modules/14/schedule"
 #define FIREBASE_PATH_SERVO_FEED_1 ROOT + "/modules/12/stage"
 #define FIREBASE_PATH_SERVO_FEED_1_SCHEDULE ROOT + "/modules/12/schedule"
 #define FIREBASE_PATH_SERVO_FEED_2 ROOT + "/modules/13/stage"
@@ -165,6 +175,16 @@ void readDbStageFun() {
     Serial.println(" ~~~~~~ servoFeedLocker2Stage :" + servoFeedLocker2Stage + " ~~~~~~");
   }
 
+  // scan door servo
+   if (Firebase.ready() && Firebase.RTDB.getString(&fbdo, FIREBASE_PATH_SERVO_DOOR)) {
+    servoDoorLockerStage = fbdo.stringData();
+    isChangeServoDoor = true;
+    if (Firebase.RTDB.getString(&fbdo, FIREBASE_PATH_SERVO_DOOR_SCHEDULE)) {
+      schedulDoorServo = fbdo.stringData();
+    }
+    Serial.println(" ~~~~~~ servoDoorLockerStage :" + servoDoorLockerStage + " ~~~~~~");
+  }
+
   //isWaterPump_2_On = readFirebase(FIREBASE_PATH_PUMP_2);
   //vTaskDelay(firebaseDataBaseScanDelay / portTICK_PERIOD_MS);
   //}
@@ -174,8 +194,9 @@ void servoFun() {
   //------------------ servo 1 ------------------
   // 180 = close door(FeedLocker1); 90 = open door
   if (servoFeedLocker1Stage.length() < 0) {
-    servoFeedLocker1Stage = "0";
+    servoFeedLocker1Stage = "180";
   }
+
   //closs to open
   if (isChabgeServo1) {
     isChabgeServo1 = false;
@@ -185,9 +206,7 @@ void servoFun() {
     vTaskDelay((schedulServo1.toInt() * 500) / portTICK_PERIOD_MS);
     //isListenDbchange = true;
     servoFood1.write(servoFood1Close);
-  }
-      
-  
+  }  
   //------------------------------------------------
 
   //------------------ servo 2 ------------------
@@ -204,9 +223,22 @@ void servoFun() {
     vTaskDelay((schedulServo2.toInt() * 1000) / portTICK_PERIOD_MS);
     //isListenDbchange = true;
     servoFood2.write(servoFood2Close);
+  } 
+  //------------------------------------------------
+
+  //------------------ servo door ------------------
+   if (servoDoorLockerStage.length() < 0) {
+    servoDoorLockerStage = "0";    //set default 0 as close
   }
-    
-  
+  //door closs to open
+  if (isChangeServoDoor) {
+    isChangeServoDoor = false;
+    servoDoor.write(servoDoorLockerStage.toInt());
+    Serial.println("|> Servi Door "+servoDoorLockerStage+", Shedule: "+schedulDoorServo+"<|");
+    writeFirebase(FIREBASE_PATH_SERVO_DOOR, String(servoDoorClose));
+    vTaskDelay((schedulDoorServo.toInt() * 1000) / portTICK_PERIOD_MS);
+    servoFood2.write(servoDoorClose);
+  } 
   //------------------------------------------------
 }
 
@@ -479,7 +511,8 @@ void setup() {
   servoDoor.attach(SERVO_DOOR);
   servoFood1.attach(SERVO_FOOD_1);
   servoFood2.attach(SERVO_FOOD_2);
-  servoDoor.write(0);
+  
+  servoDoor.write(servoDoorClose);
   servoFood1.write(servoFood1Close);
   servoFood2.write(servoFood2Close);
 
