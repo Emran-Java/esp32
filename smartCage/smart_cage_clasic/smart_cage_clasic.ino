@@ -96,7 +96,7 @@ String servoDoorLockerStage = "0", schedulDoorServo = "5";
 String servoFeedLocker1Stage = "0", schedulServo1 = "2";
 String servoFeedLocker2Stage = "0", schedulServo2 = "2";
 ;  // 0 = close; 90 = open
-int servoDoorClose = 0, servoFood1Close = 180, servoFood2Close = 90;
+int servoDoorClose = 0, servoFood1Close = 180, servoFood2Close = 30;
 
 
 
@@ -675,9 +675,9 @@ void loop() {
   //readDbStageFun();
   //relayFun();
 
-  if (isListenDbchange) {
+  //if (isListenDbchange) {
     Firebase.RTDB.readStream(&stream);  // Keep polling
-  }
+  //}
   delay(100);  // Or run this in a FreeRTOS task
 
   //lightSensor();
