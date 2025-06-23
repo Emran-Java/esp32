@@ -24,13 +24,13 @@ void setup() {
   Serial.begin(115200);
   //servo1.attach(servoPin);
   servo2.attach(servoPin2);
-  servo2.write(30);
+  servo2.write(0);
 }
 
 void loop() {
-  servo2.write(100);
+  servo2.write(70);
      delay(2000);
-   servo2.write(30);
+   servo2.write(0);
    delay(2000);
     
   // for(int posDegrees = 0; posDegrees <= 180; posDegrees++) {

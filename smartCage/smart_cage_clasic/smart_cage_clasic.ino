@@ -20,7 +20,7 @@
 #include <math.h>
 
 //TaskHandle_t scanInputDataSendToFirebaseTaskHandle = NULL;
-TaskHandle_t distanceFunTaskHandle = NULL, mq2FunTaskHandle = NULL, lightFunTaskHandle = NULL;
+TaskHandle_t distanceFunTaskHandle = NULL, mq2FunTaskHandle = NULL, lightFunTaskHandle = NULL, businessLogicTaskHandle = NULL;
 // TaskHandle_t gasFunTaskHandle = NULL;
 // TaskHandle_t relayFunTaskHandle = NULL;
 // TaskHandle_t readDbStageFunTaskHandle = NULL;
@@ -63,7 +63,7 @@ unsigned long firebaseDataBaseScanDelay = 1000;  // default
 #define DHT_PIN 27
 #define MQ2_PIN 34
 #define TEMP_SENSOR_PIN 33
-#define LIGHT_SENSOR_PIN 25
+#define LIGHT_SENSOR_PIN 35
 //-------------------------
 
 // output
@@ -85,18 +85,19 @@ long duration;
 float distanceCm = 0.0;
 //float distanceInch;
 int gasData = 0;
+float ldrLuxValue = 0.0;
 
 String isWaterPump_1_On = "0", isWaterPump_2_On = "0";
 String isIndoreFan_On = "0", isAireExit_On = "0";
-String isLight1_on = "0", isRoomHeater_on = "0";
+String isLight1_on = "0", isRoomHeater_on = "0", isAutoMode_on = "0";
 bool isListenDbchange = true;
 
-bool isChabgeServo1 = false, isChangeServo2 = false, isChangeServoDoor = false;
+bool isChabgeServo1 = false, isChangeServo2 = false, isChangeServoDoor = false, isAutoMode = false;
 String servoDoorLockerStage = "0", schedulDoorServo = "5";
 String servoFeedLocker1Stage = "0", schedulServo1 = "2";
 String servoFeedLocker2Stage = "0", schedulServo2 = "2";
 ;  // 0 = close; 90 = open
-int servoDoorClose = 0, servoFood1Close = 180, servoFood2Close = 30;
+int servoDoorClose = 0, servoFood1Close = 180, servoFood2Close = 0;
 
 
 
@@ -111,6 +112,8 @@ OneWire oneWire(TEMP_SENSOR_PIN);
 DallasTemperature sensors(&oneWire);
 
 #define FIREBASE_PATH_INPUT_TO_DB_DELAY ROOT + "/config/firebaseScanDelay"
+////isModeAuto
+#define FIREBASE_PATH_IS_MODE_AUTO ROOT + "/config/isModeAuto"
 
 #define FIREBASE_PATH_LDR ROOT + "/sensors/0/stage"
 #define FIREBASE_PATH_MQ2_GAS ROOT + "/sensors/1/stage"
@@ -131,6 +134,29 @@ DallasTemperature sensors(&oneWire);
 #define FIREBASE_PATH_SERVO_FEED_1_SCHEDULE ROOT + "/modules/12/schedule"
 #define FIREBASE_PATH_SERVO_FEED_2 ROOT + "/modules/13/stage"
 #define FIREBASE_PATH_SERVO_FEED_2_SCHEDULE ROOT + "/modules/13/schedule"
+
+
+unsigned long lightOnPrevMillis = 0;
+const long LIGHT_INTERVAL_MILLIS = 5000;
+
+void businessLogic() {
+
+  if ((millis() - lightOnPrevMillis) > LIGHT_INTERVAL_MILLIS || lightOnPrevMillis <= 0) {
+    lightOnPrevMillis = millis();
+    if (ldrLuxValue < 5 && isAutoMode_on.equals("1")) {
+          //TODO, LED on
+          digitalWrite(RELAY_LIGHT_1, LOW);  // ON
+          writeFirebase(FIREBASE_PATH_LIGHT_1, "1");
+          
+    } else {
+      //TODO, LED off
+        digitalWrite(RELAY_LIGHT_1, HIGH);  // OFF
+        writeFirebase(FIREBASE_PATH_LIGHT_1, "0");
+        
+    }
+  }
+}
+
 
 void streamCallback(FirebaseStream data) {
   Serial.println("Stream Data Received");
@@ -155,6 +181,12 @@ void readDbStageFun() {
   if (Firebase.ready() && Firebase.RTDB.getString(&fbdo, FIREBASE_PATH_ROOM_HEATER)) {
     isRoomHeater_on = fbdo.stringData();
     Serial.println("------ isRoomHeater_on :" + isRoomHeater_on + " ------");
+  }
+
+  //FIREBASE_PATH_IS_MODE_AUTO
+  if (Firebase.ready() && Firebase.RTDB.getString(&fbdo, FIREBASE_PATH_IS_MODE_AUTO)) {
+    isAutoMode_on = fbdo.stringData();
+    Serial.println("------ AutoMode :" + isAutoMode_on + " ------");
   }
 
   if (Firebase.ready() && Firebase.RTDB.getString(&fbdo, FIREBASE_PATH_LIGHT_1)) {
@@ -344,10 +376,11 @@ void lightSensor() {
     delay(200);
   }
   analogValue = avg / 10.0;
-  Serial.print("Analog Value = ");
-  Serial.print(analogValue);  // the raw analog reading
-  Serial.print(" " + getLightingCondition(analogValue));
-  Serial.println(" lux: " + String(getLux(analogValue)));
+  //Serial.print("Analog Value = ");
+  //Serial.print(analogValue);  // the raw analog reading
+  //Serial.print(" " + getLightingCondition(analogValue));
+  ldrLuxValue = getLux(analogValue);
+  //Serial.println(" lux: " + ldrLuxValue);
 }
 
 String getLightingCondition(int analogValue) {
@@ -412,11 +445,18 @@ void gasFun() {
   gasData = total / 10;
   //xSemaphoreGive(firebaseMutex);
   //}
-  Serial.printf("Gas val: %d\n", gasData);
+  //Serial.print("MQ2 Gas Sensor Value (A0 - GPIO 34): ");
+  //String gasVal2 = String((int)analogRead(MQ2_PIN));
+  //Serial.println(gasVal2);
   vTaskDelay(1500 / portTICK_PERIOD_MS);  // Wait 1.5 seconds
   //}
 }
 
+void businessLogic(void *pvParameters) {
+  while (1) {
+    businessLogic();
+  }
+}
 
 void mq2Fun(void *pvParameters) {
   while (1) {
@@ -487,6 +527,13 @@ void scanInputDataSendToFirebase(/*void *pvParameters*/) {
         //int gasVal = analogRead(MQ2_PIN);
         Serial.println("Gas data: " + String(gasData));
         writeFirebase(FIREBASE_PATH_MQ2_GAS, String(gasData));
+        //-----------------
+
+
+        //MQ2 Gas
+        //int gasVal = analogRead(MQ2_PIN);
+        Serial.println("LDR LXU data: " + String(ldrLuxValue));
+        writeFirebase(FIREBASE_PATH_LDR, String(ldrLuxValue));
         //-----------------
 
         //Water level / Distance
@@ -666,9 +713,10 @@ void setup() {
 
   setupWiFiAndFirebase();
 
-  xTaskCreatePinnedToCore(distanceFun, "distanceFunTaskHandle", 2024, NULL, 1, &distanceFunTaskHandle, 0);
-  xTaskCreatePinnedToCore(mq2Fun, "mq2FunTaskHandle", 2024, NULL, 1, &mq2FunTaskHandle, 1);
-  xTaskCreatePinnedToCore(lightFun, "lightFunTaskHandle", 2024, NULL, 1, &lightFunTaskHandle, 0);
+  xTaskCreatePinnedToCore(distanceFun, "distanceFunTaskHandle", 3072, NULL, 1, &distanceFunTaskHandle, 0);
+  xTaskCreatePinnedToCore(mq2Fun, "mq2FunTaskHandle", 3072, NULL, 1, &mq2FunTaskHandle, 1);
+  xTaskCreatePinnedToCore(lightFun, "lightFunTaskHandle", 3072, NULL, 1, &lightFunTaskHandle, 0);
+  //xTaskCreatePinnedToCore(businessLogic, "businessLogicTaskHandle", 4096, NULL, 1, &businessLogicTaskHandle, 1);
 }
 
 void loop() {
@@ -676,7 +724,7 @@ void loop() {
   //relayFun();
 
   //if (isListenDbchange) {
-    Firebase.RTDB.readStream(&stream);  // Keep polling
+  Firebase.RTDB.readStream(&stream);  // Keep polling
   //}
   delay(100);  // Or run this in a FreeRTOS task
 
@@ -684,4 +732,5 @@ void loop() {
   //distanceFun();
   scanInputDataSendToFirebase();
   // gasFun();
+  businessLogic();
 }

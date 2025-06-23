@@ -1,10 +1,27 @@
 #include <math.h>
-#define LIGHT_SENSOR_PIN 25 // ESP32 pin 25 (ADC0)
+#include <WiFiManager.h>  // https://github.com/tzapu/WiFiManager
+
+#define LIGHT_SENSOR_PIN 35 // ESP32 pin 35 (ADC0)
 
 void setup() {
   Serial.begin(115200);
   // set the ADC attenuation to 11 dB (up to ~3.3V input)
   analogSetAttenuation(ADC_11db);
+/*
+  WiFiManager wm;
+  bool res;
+  //res = wm.autoConnect();  // auto generated AP name from chipid
+  res = wm.autoConnect("bo_wifi_8");  // anonymous ap
+*/
+  /*if (!res) {
+    Serial.println("Failed to connect");
+    // ESP.restart();
+  } else {
+    //if you get here you have connected to the WiFi
+    //Serial.println("connected...with ronok :)");
+    Serial.println("\nConnected to Wi-Fi");
+  }*/
+  
 }
 
 void loop() {
