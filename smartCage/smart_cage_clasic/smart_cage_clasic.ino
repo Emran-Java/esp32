@@ -83,6 +83,8 @@ unsigned long firebaseDataBaseScanDelay = 1000;  // default
 
 long duration;
 float distanceCm = 0.0;
+float pump1OffWaterDistanceCm = 8.3;
+float pump2OffWaterDistanceCm = 13.9;
 //float distanceInch;
 int gasData = 0;
 float ldrLuxValue = 0.0;
@@ -141,18 +143,27 @@ const long LIGHT_INTERVAL_MILLIS = 5000;
 
 void businessLogic() {
 
+  if (distanceCm > pump2OffWaterDistanceCm) {
+    //off pump2
+    digitalWrite(RELAY_WATER_PUMP_2, HIGH);  // OFF
+    writeFirebase(FIREBASE_PATH_PUMP_2, "0");
+  } else if (distanceCm < pump1OffWaterDistanceCm) {
+    //off pump1
+    digitalWrite(RELAY_WATER_PUMP_1, HIGH);  // OFF
+    writeFirebase(FIREBASE_PATH_PUMP_1, "0");
+  }
+
   if ((millis() - lightOnPrevMillis) > LIGHT_INTERVAL_MILLIS || lightOnPrevMillis <= 0) {
     lightOnPrevMillis = millis();
     if (ldrLuxValue < 5 && isAutoMode_on.equals("1")) {
-          //TODO, LED on
-          digitalWrite(RELAY_LIGHT_1, LOW);  // ON
-          writeFirebase(FIREBASE_PATH_LIGHT_1, "1");
-          
+      //TODO, LED on
+      digitalWrite(RELAY_LIGHT_1, LOW);  // ON
+      writeFirebase(FIREBASE_PATH_LIGHT_1, "1");
+
     } else {
       //TODO, LED off
-        digitalWrite(RELAY_LIGHT_1, HIGH);  // OFF
-        writeFirebase(FIREBASE_PATH_LIGHT_1, "0");
-        
+      digitalWrite(RELAY_LIGHT_1, HIGH);  // OFF
+      writeFirebase(FIREBASE_PATH_LIGHT_1, "0");
     }
   }
 }
@@ -486,6 +497,16 @@ void distanceFun(void *pvParameters) {
     // Convert to inches
     //distanceInch = distanceCm * CM_TO_INCH;
     //writeFirebase(FIREBASE_PATH_WATER_LEVEL, String(distanceCm) + "cm");
+
+    if (distanceCm > pump2OffWaterDistanceCm) {
+      //off pump2
+      digitalWrite(RELAY_WATER_PUMP_2, HIGH);  // OFF
+
+    } else if (distanceCm < pump1OffWaterDistanceCm) {
+      //off pump1
+      digitalWrite(RELAY_WATER_PUMP_1, HIGH);  // OFF
+    }
+
     vTaskDelay(1000 / portTICK_PERIOD_MS);
   }
 }
