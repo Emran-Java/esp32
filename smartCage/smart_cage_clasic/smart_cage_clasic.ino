@@ -309,13 +309,32 @@ void servoFun() {
   //door closs to open
   if (isChangeServoDoor) {
     isChangeServoDoor = false;
-    servoDoor.write(servoDoorLockerStage.toInt());
+    //servoDoor.write(servoDoorLockerStage.toInt());
+    doorOpen(servoDoorLockerStage.toInt());
     Serial.println("|> Servi Door " + servoDoorLockerStage + ", Shedule: " + schedulDoorServo + "<|");
-    writeFirebase(FIREBASE_PATH_SERVO_DOOR, String(servoDoorClose));
+    
     vTaskDelay((schedulDoorServo.toInt() * 1000) / portTICK_PERIOD_MS);
-    servoFood2.write(servoDoorClose);
+    doorClose(servoDoorLockerStage.toInt(), servoDoorClose);
+    
+    
+    writeFirebase(FIREBASE_PATH_SERVO_DOOR, String(servoDoorClose));
+    
   }
   //------------------------------------------------
+}
+
+void doorOpen(int servoDoorOpen) {
+  for(int posDegrees = servoDoorClose; posDegrees <= servoDoorOpen; posDegrees++) {
+    servoDoor.write(posDegrees);
+    delay(10);
+  }
+}
+
+void doorClose(int toStart, int servoDoorClose) {
+  for(int posDegrees = toStart; posDegrees >= servoDoorClose; posDegrees--) {
+    servoDoor.write(posDegrees);
+    delay(10);
+  }
 }
 
 void relayFun() {
