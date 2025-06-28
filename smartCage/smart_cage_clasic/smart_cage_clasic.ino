@@ -44,6 +44,7 @@ String STREAM_PATH = ROOT + "/modules";
 
 FirebaseData fbdo;
 FirebaseData stream;
+FirebaseData fbdoSync;
 
 FirebaseAuth auth;
 FirebaseConfig config;
@@ -55,6 +56,7 @@ const long sendDataIntervalMillis = 1000;
 unsigned long firebaseDataBaseScanDelay = 1000;  // default
 
 // for input GPIO Pin Definitions
+#define ON_BOARD_BLUE_LED 2
 #define TRIG_PIN 5
 #define ECHO_PIN 18
 #define SOUND_VELOCITY 0.034
@@ -77,7 +79,8 @@ unsigned long firebaseDataBaseScanDelay = 1000;  // default
 #define RELAY_WATER_PUMP_2 23
 
 #define RELAY_LIGHT_1 12
-#define RELAY_ROOM_HEATER 2
+#define RELAY_ROOM_HEATER 4    //we will chnage likhe use GPIO 4
+#define RELAY_WATER_HEATER 17  //we will use likhe use GPIO 17
 //-------------------------
 
 
@@ -91,7 +94,7 @@ float ldrLuxValue = 0.0;
 
 String isWaterPump_1_On = "0", isWaterPump_2_On = "0";
 String isIndoreFan_On = "0", isAireExit_On = "0";
-String isLight1_on = "0", isRoomHeater_on = "0", isAutoMode_on = "0";
+String isLight1_on = "0", isRoomHeater_on = "0", isAutoMode_on = "0", isWaterHeater_on = "0";
 bool isListenDbchange = true;
 
 bool isChabgeServo1 = false, isChangeServo2 = false, isChangeServoDoor = false, isAutoMode = false;
@@ -99,7 +102,7 @@ String servoDoorLockerStage = "0", schedulDoorServo = "5";
 String servoFeedLocker1Stage = "0", schedulServo1 = "2";
 String servoFeedLocker2Stage = "0", schedulServo2 = "2";
 ;  // 0 = close; 90 = open
-int servoDoorClose = 0, servoFood1Close = 180, servoFood2Close = 0;
+int servoDoorClose = 0, servoFood1Close = 0, servoFood2Close = 0;
 
 
 
@@ -129,6 +132,7 @@ DallasTemperature sensors(&oneWire);
 #define FIREBASE_PATH_PUMP_2 ROOT + "/modules/6/stage"
 #define FIREBASE_PATH_LIGHT_1 ROOT + "/modules/2/stage"
 #define FIREBASE_PATH_ROOM_HEATER ROOT + "/modules/10/stage"
+#define FIREBASE_PATH_WATER_TEMPETATURE ROOT + "/modules/8/stage"
 
 #define FIREBASE_PATH_SERVO_DOOR ROOT + "/modules/14/stage"
 #define FIREBASE_PATH_SERVO_DOOR_SCHEDULE ROOT + "/modules/14/schedule"
@@ -138,8 +142,90 @@ DallasTemperature sensors(&oneWire);
 #define FIREBASE_PATH_SERVO_FEED_2_SCHEDULE ROOT + "/modules/13/schedule"
 
 
+
 unsigned long lightOnPrevMillis = 0;
 const long LIGHT_INTERVAL_MILLIS = 5000;
+
+
+void firstTimeCheck(){
+  //check function
+  digitalWrite(RELAY_LIGHT_1, LOW);  // ON
+  delay(800);
+  digitalWrite(RELAY_LIGHT_1, HIGH);  // OFF
+  delay(200);
+  
+  digitalWrite(RELAY_WATER_PUMP_2, LOW);  // ON
+  delay(800);
+  digitalWrite(RELAY_WATER_PUMP_2, HIGH);  // OFF
+  delay(200);
+
+  digitalWrite(RELAY_WATER_PUMP_1, LOW);  // ON
+  delay(800);
+  digitalWrite(RELAY_WATER_PUMP_1, HIGH);  // OFF
+  delay(200);
+
+  digitalWrite(RELAY_INDOOR_FAN, LOW);  // ON
+  delay(800);
+  digitalWrite(RELAY_INDOOR_FAN, HIGH);  // OFF
+  delay(200);
+
+  digitalWrite(RELAY_AIR_EXIT_FAN, LOW);  // ON
+  delay(800);
+  digitalWrite(RELAY_AIR_EXIT_FAN, HIGH);  // OFF
+  delay(200);
+
+  digitalWrite(RELAY_ROOM_HEATER, LOW);  // ON
+  delay(800);
+  digitalWrite(RELAY_ROOM_HEATER, HIGH);  // OFF
+  delay(200);
+
+  digitalWrite(RELAY_WATER_HEATER, LOW);  // ON
+  delay(800);
+  digitalWrite(RELAY_WATER_HEATER, HIGH);  // OFF
+  delay(200);
+
+  doorOpen(70);
+  delay(1800);
+  doorClose(70,servoDoorClose);
+
+}
+
+
+void blinkDoorOpen(bool isOpen) {
+  if (isOpen)
+    blinkOnBoardLed(true, 4, 500, 250);
+  else
+    blinkOnBoardLed(true, 4, 250, 500);
+}
+
+void blinkError() {
+  blinkOnBoardLed(true, 5, 250, 250);
+}
+
+void blinkRelayOff() {
+  //blinkOnBoardLed(true, 2, 125, 250);
+}
+
+void blinkRelayOn() {
+  blinkOnBoardLed(true, 1, 250, 125);
+}
+
+void blinkConnectedToWifi() {
+  blinkOnBoardLed(true, 2, 250, 250);
+}
+
+void blinkOnBoardLed(bool isBlink, int count, long onDelay, long offDelay) {
+  if (onDelay <= 0) onDelay = 1;
+  if (offDelay <= 0) offDelay = 1;
+  if (isBlink) {
+    for (int i = 0; i < count; i++) {
+      digitalWrite(ON_BOARD_BLUE_LED, HIGH);  // ON
+      vTaskDelay(onDelay / portTICK_PERIOD_MS);
+      digitalWrite(ON_BOARD_BLUE_LED, LOW);  // ON
+      vTaskDelay(offDelay / portTICK_PERIOD_MS);
+    }
+  }
+}
 
 void businessLogic() {
 
@@ -155,7 +241,7 @@ void businessLogic() {
 
   if ((millis() - lightOnPrevMillis) > LIGHT_INTERVAL_MILLIS || lightOnPrevMillis <= 0) {
     lightOnPrevMillis = millis();
-    if (ldrLuxValue < 5 && isAutoMode_on.equals("1")) {
+    if (ldrLuxValue < 8 && isAutoMode_on.equals("1")) {
       //TODO, LED on
       digitalWrite(RELAY_LIGHT_1, LOW);  // ON
       writeFirebase(FIREBASE_PATH_LIGHT_1, "1");
@@ -188,6 +274,11 @@ void streamTimeoutCallback(bool timeout) {
 void readDbStageFun() {
   //while (true) {
   Serial.println("------ readDbStageFun ------");
+
+  if (Firebase.ready() && Firebase.RTDB.getString(&fbdo, FIREBASE_PATH_WATER_TEMPETATURE)) {
+    isWaterHeater_on = fbdo.stringData();
+    Serial.println("------ isWaterHeater_on :" + isWaterHeater_on + " ------");
+  }
 
   if (Firebase.ready() && Firebase.RTDB.getString(&fbdo, FIREBASE_PATH_ROOM_HEATER)) {
     isRoomHeater_on = fbdo.stringData();
@@ -268,9 +359,9 @@ void readDbStageFun() {
 
 void servoFun() {
   //------------------ servo 1 ------------------
-  // 180 = close door(FeedLocker1); 90 = open door
+  // 0 = close door(FeedLocker1); 90 = open door
   if (servoFeedLocker1Stage.length() < 0) {
-    servoFeedLocker1Stage = "180";
+    servoFeedLocker1Stage = servoFood1Close;
   }
 
   //closs to open
@@ -312,26 +403,27 @@ void servoFun() {
     //servoDoor.write(servoDoorLockerStage.toInt());
     doorOpen(servoDoorLockerStage.toInt());
     Serial.println("|> Servi Door " + servoDoorLockerStage + ", Shedule: " + schedulDoorServo + "<|");
-    
+
     vTaskDelay((schedulDoorServo.toInt() * 1000) / portTICK_PERIOD_MS);
     doorClose(servoDoorLockerStage.toInt(), servoDoorClose);
-    
-    
+
+
     writeFirebase(FIREBASE_PATH_SERVO_DOOR, String(servoDoorClose));
-    
   }
   //------------------------------------------------
 }
 
 void doorOpen(int servoDoorOpen) {
-  for(int posDegrees = servoDoorClose; posDegrees <= servoDoorOpen; posDegrees++) {
+  blinkDoorOpen(true);
+  for (int posDegrees = servoDoorClose; posDegrees <= servoDoorOpen; posDegrees++) {
     servoDoor.write(posDegrees);
     delay(10);
   }
 }
 
 void doorClose(int toStart, int servoDoorClose) {
-  for(int posDegrees = toStart; posDegrees >= servoDoorClose; posDegrees--) {
+  blinkDoorOpen(false);
+  for (int posDegrees = toStart; posDegrees >= servoDoorClose; posDegrees--) {
     servoDoor.write(posDegrees);
     delay(10);
   }
@@ -339,56 +431,76 @@ void doorClose(int toStart, int servoDoorClose) {
 
 void relayFun() {
   //while (true) {
+
+
+  Serial.println("Water Heater Relay " + isWaterHeater_on);
+  if (isWaterHeater_on == "1") {
+    //Serial.println("Room Heater Relay ON");
+    digitalWrite(RELAY_WATER_HEATER, LOW);  // ON
+    blinkRelayOn();
+  } else {
+    blinkRelayOff();
+    digitalWrite(RELAY_WATER_HEATER, HIGH);  // OFF
+  }
+
   Serial.println("Room Heater Relay " + isRoomHeater_on);
   if (isRoomHeater_on == "1") {
     //Serial.println("Room Heater Relay ON");
     digitalWrite(RELAY_ROOM_HEATER, LOW);  // ON
+    blinkRelayOn();
   } else {
     digitalWrite(RELAY_ROOM_HEATER, HIGH);  // OFF
+    blinkRelayOff();
   }
 
   Serial.println("Indore Light Relay " + isLight1_on);
   if (isLight1_on == "1") {
     //Serial.println("Indor Light Relay ON");
     digitalWrite(RELAY_LIGHT_1, LOW);  // ON
+    blinkRelayOn();
   } else {
     digitalWrite(RELAY_LIGHT_1, HIGH);  // OFF
+    blinkRelayOff();
   }
 
   Serial.println("Indore fane Relay " + isIndoreFan_On);
   if (isIndoreFan_On == "1") {
     //Serial.println("Indor fan Relay ON");
     digitalWrite(RELAY_INDOOR_FAN, LOW);  // ON
+    blinkRelayOn();
   } else {
     digitalWrite(RELAY_INDOOR_FAN, HIGH);  // OFF
+    blinkRelayOff();
   }
 
   Serial.println("AireExit Relay " + isAireExit_On);
   if (isAireExit_On == "1") {
     //Serial.println("Aire exit Relay ON");
     digitalWrite(RELAY_AIR_EXIT_FAN, LOW);  // ON
+    blinkRelayOn();
   } else {
     digitalWrite(RELAY_AIR_EXIT_FAN, HIGH);  // OFF
+    blinkRelayOff();
   }
 
   Serial.println("Water pump 1 Relay " + isWaterPump_1_On);
   if (isWaterPump_1_On == "1") {
     //Serial.println("Water pump 1 Relay ON");
     digitalWrite(RELAY_WATER_PUMP_1, LOW);  // ON
-    servoFood2.write(servoFood2Close);
-    servoFood1.write(servoFood1Close);
+    blinkRelayOn();
   } else {
     digitalWrite(RELAY_WATER_PUMP_1, HIGH);  // OFF
+    blinkRelayOff();
   }
 
   Serial.println("Water pump 2 Relay " + isWaterPump_2_On);
   if (isWaterPump_2_On == "1") {
     //Serial.println("Water pump 2 Relay ON");
     digitalWrite(RELAY_WATER_PUMP_2, LOW);  // ON
-    servoFood2.write(servoFood2Close);
-    servoFood1.write(servoFood1Close);
+    blinkRelayOn();
   } else {
     digitalWrite(RELAY_WATER_PUMP_2, HIGH);  // OFF
+    blinkRelayOff();
   }
   vTaskDelay(500 / portTICK_PERIOD_MS);  // Wait 1.5 seconds
   //}
@@ -541,15 +653,14 @@ void scanInputDataSendToFirebase(/*void *pvParameters*/) {
 
       if (isActive = "1") {
         Serial.println(" === Start send sensor data to FB DB ===");
-        Serial.println("");
-
+        
         //DTH11
         float hum = dht.readHumidity();
         float temp = dht.readTemperature();
         String val = String(hum) + "%," + String(temp) + "c";
         Serial.println(" ('.') Environment: " + val);
         writeFirebase(FIREBASE_PATH_DTH11, val);
-
+        Serial.println("");
         //delay(5000);
         //-----------------
 
@@ -596,7 +707,7 @@ void scanInputDataSendToFirebase(/*void *pvParameters*/) {
 void writeFirebase(String path, String value) {
   //if (xSemaphoreTake(firebaseMutex, portMAX_DELAY)) {
   if (Firebase.ready()) {
-    Firebase.RTDB.setString(&fbdo, path, value);
+    Firebase.RTDB.setString(&fbdoSync, path, value);
     vTaskDelay(2000 / portTICK_PERIOD_MS);
   }
   //xSemaphoreGive(firebaseMutex);
@@ -650,6 +761,7 @@ void setupWiFiAndFirebase() {
     //if you get here you have connected to the WiFi
     //Serial.println("connected...with ronok :)");
     Serial.println("\nConnected to Wi-Fi");
+    blinkConnectedToWifi();
   }
 
   config.api_key = API_KEY;
@@ -739,6 +851,8 @@ void setup() {
   pinMode(RELAY_WATER_PUMP_2, OUTPUT);
   pinMode(RELAY_LIGHT_1, OUTPUT);
   pinMode(RELAY_ROOM_HEATER, OUTPUT);
+  pinMode(RELAY_WATER_HEATER, OUTPUT);
+  pinMode(ON_BOARD_BLUE_LED, OUTPUT);
 
   //set relay default value
   digitalWrite(RELAY_WATER_PUMP_1, HIGH);
@@ -747,6 +861,8 @@ void setup() {
   digitalWrite(RELAY_INDOOR_FAN, HIGH);
   digitalWrite(RELAY_LIGHT_1, HIGH);
   digitalWrite(RELAY_ROOM_HEATER, HIGH);
+  digitalWrite(RELAY_WATER_HEATER, HIGH);
+  digitalWrite(ON_BOARD_BLUE_LED, LOW);
 
   //firebaseMutex = xSemaphoreCreateMutex();
   //xSemaphoreGive(firebaseMutex);  // Give it once so it's available
@@ -755,8 +871,10 @@ void setup() {
 
   xTaskCreatePinnedToCore(distanceFun, "distanceFunTaskHandle", 3072, NULL, 1, &distanceFunTaskHandle, 0);
   xTaskCreatePinnedToCore(mq2Fun, "mq2FunTaskHandle", 3072, NULL, 1, &mq2FunTaskHandle, 1);
-  xTaskCreatePinnedToCore(lightFun, "lightFunTaskHandle", 3072, NULL, 1, &lightFunTaskHandle, 0);
+  xTaskCreatePinnedToCore(lightFun, "lightFunTaskHandle", 3072, NULL, 1, &lightFunTaskHandle, 0); 
   //xTaskCreatePinnedToCore(businessLogic, "businessLogicTaskHandle", 4096, NULL, 1, &businessLogicTaskHandle, 1);
+  
+  //firstTimeCheck();
 }
 
 void loop() {
